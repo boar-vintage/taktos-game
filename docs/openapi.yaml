@@ -61,6 +61,18 @@ paths:
   /payments/webhook:
     post:
       summary: Webhook stub to complete unlock
+  /sms/inbound:
+    post:
+      summary: Twilio inbound SMS webhook
+  /admin/sms/invites:
+    post:
+      summary: Create SMS invite code (admin)
+  /admin/sms/allowlist:
+    post:
+      summary: Upsert SMS allowlist status (admin)
+  /admin/sms/usage:
+    get:
+      summary: Daily SMS usage by phone (admin)
   /federation/portals:
     get:
       summary: List portals

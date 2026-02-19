@@ -11,7 +11,15 @@ const envSchema = z.object({
   STRIPE_SECRET_KEY: z.string().default('sk_test_stub'),
   STRIPE_WEBHOOK_SECRET: z.string().default('whsec_stub'),
   UNLOCK_PRICE_CENTS: z.coerce.number().int().positive().default(2500),
-  UNLOCK_CURRENCY: z.string().default('usd')
+  UNLOCK_CURRENCY: z.string().default('usd'),
+  TWILIO_ACCOUNT_SID: z.string().default(''),
+  TWILIO_AUTH_TOKEN: z.string().default(''),
+  TWILIO_PHONE_NUMBER: z.string().default(''),
+  SMS_MAX_INBOUND_PER_DAY: z.coerce.number().int().positive().default(30),
+  SMS_MAX_OUTBOUND_PER_DAY: z.coerce.number().int().positive().default(30),
+  SMS_BURST_LIMIT_PER_SEC: z.coerce.number().positive().default(1),
+  SMS_SUPPORT_URL: z.string().default('https://example.local/support'),
+  SMS_UNLOCK_BASE_URL: z.string().default('https://example.local')
 });
 
 export const env = envSchema.parse(process.env);

@@ -8,6 +8,8 @@ import authRoutes from './routes/auth.js';
 import worldRoutes from './routes/world.js';
 import actionsRoutes from './routes/actions.js';
 import federationRoutes from './routes/federation.js';
+import smsRoutes from './routes/sms.js';
+import adminSmsRoutes from './routes/adminSms.js';
 import { WsHub } from './services/wsHub.js';
 import { ZodError } from 'zod';
 
@@ -24,6 +26,14 @@ export function buildApp() {
   app.register(authPlugin);
 
   app.decorate('wsHub', null as unknown as WsHub);
+  app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (_request, body, done) => {
+    const params = new URLSearchParams(body as string);
+    const parsed: Record<string, string> = {};
+    for (const [key, value] of params.entries()) {
+      parsed[key] = value;
+    }
+    done(null, parsed);
+  });
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) {
@@ -40,6 +50,8 @@ export function buildApp() {
   app.register(worldRoutes, { prefix: '/api' });
   app.register(actionsRoutes, { prefix: '/api' });
   app.register(federationRoutes, { prefix: '/api' });
+  app.register(adminSmsRoutes);
+  app.register(smsRoutes);
 
   app.after(() => {
     app.wsHub = new WsHub(app);

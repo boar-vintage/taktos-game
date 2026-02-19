@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { pool } from '../db/pool.js';
-import { appendEvent } from '../services/events.js';
+import { getPlace, listJobs, listPlaces } from '../services/gameplay.js';
 
 const worldRoutes: FastifyPluginAsync = async (app) => {
   app.get('/worlds', async () => {
@@ -30,65 +30,23 @@ const worldRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/worlds/:worldId/places', async (request) => {
     const params = request.params as { worldId: string };
-    const places = await pool.query(
-      `SELECT p.id, p.world_id, p.name, p.description, p.address_text, p.is_featured, p.created_at,
-              COUNT(pr.user_id) FILTER (WHERE pr.status = 'online')::int AS online_count
-       FROM places p
-       LEFT JOIN presence pr ON pr.place_id = p.id
-       WHERE p.world_id = $1
-       GROUP BY p.id
-       ORDER BY p.is_featured DESC, p.created_at ASC`,
-      [params.worldId]
-    );
-
-    return { places: places.rows };
+    return { places: await listPlaces(params.worldId) };
   });
 
   app.get('/places/:placeId', async (request, reply) => {
     const params = request.params as { placeId: string };
-
-    const place = await pool.query(
-      `SELECT p.id, p.name, p.description, p.address_text, p.world_id,
-              COUNT(pr.user_id) FILTER (WHERE pr.status = 'online')::int AS online_count
-       FROM places p
-       LEFT JOIN presence pr ON pr.place_id = p.id
-       WHERE p.id = $1
-       GROUP BY p.id`,
-      [params.placeId]
-    );
-
-    if (!place.rowCount) {
+    const place = await getPlace(params.placeId);
+    if (!place) {
       reply.code(404).send({ error: 'Place not found' });
       return;
     }
 
-    return { place: place.rows[0]! };
+    return { place };
   });
 
   app.get('/places/:placeId/jobs', { preHandler: [app.authenticate] }, async (request) => {
     const params = request.params as { placeId: string };
-
-    const jobs = await pool.query(
-      `SELECT id, place_id, title, description, location_text, is_active, created_at
-       FROM jobs
-       WHERE place_id = $1 AND is_active = TRUE
-       ORDER BY created_at ASC`,
-      [params.placeId]
-    );
-
-    const worldForPlace = await pool.query<{ world_id: string }>('SELECT world_id FROM places WHERE id = $1', [params.placeId]);
-    if (worldForPlace.rowCount) {
-      const event = await appendEvent({
-        worldId: worldForPlace.rows[0]!.world_id,
-        placeId: params.placeId,
-        userId: request.user.userId,
-        type: 'JobViewed',
-        payload: { placeId: params.placeId, count: jobs.rowCount }
-      });
-      app.wsHub.broadcast(event);
-    }
-
-    return { jobs: jobs.rows };
+    return { jobs: await listJobs(params.placeId, { app, userId: request.user.userId }) };
   });
 };
 

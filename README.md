@@ -75,6 +75,7 @@ A pragmatic monorepo for **Taktos Core World** (backend) and an official open-so
 - Chat sanitation (raw + normalized payload)
 - Unlock transaction rails + Stripe checkout stub + simulate payment route
 - Federation scaffolding (worlds/portals/agreements/attribution rule endpoints)
+- Invite-only Twilio SMS client with session menus, JOIN codes, STOP/START/HELP compliance, and daily/burst quotas
 
 ## Run Locally
 1. Copy env files:
@@ -111,6 +112,11 @@ pnpm terminal
 
 7. Open two client sessions to verify realtime chat/emotes/presence.
 
+8. Optional SMS setup:
+```bash
+# see docs/sms.md for full setup
+```
+
 ## Terminal Quickstart
 - `SIGNUP you@example.com password123 Casey employer`
 - `MAP`
@@ -132,3 +138,25 @@ pnpm terminal
 - MVP unlock model: employer/recruiter initiated contact unlock.
 - Stripe webhook is a dev-oriented stub by default; signature verification is intentionally left for production hardening.
 - Satellites are schema/API scaffolds only in this milestone.
+- SMS webhook endpoint: `POST /sms/inbound`
+- SMS docs: `docs/sms.md`
+
+## SMS Admin Quickstart
+1. Create an admin JWT (signup/login via `/api/auth/*`).
+2. Create invite code:
+```bash
+curl -X POST http://localhost:4000/admin/sms/invites \
+  -H "Authorization: Bearer <ADMIN_JWT>" \
+  -H "Content-Type: application/json" \
+  -d '{"max_uses":1,"expires_in_days":7}'
+```
+3. Optional explicit allowlist:
+```bash
+curl -X POST http://localhost:4000/admin/sms/allowlist \
+  -H "Authorization: Bearer <ADMIN_JWT>" \
+  -H "Content-Type: application/json" \
+  -d '{"phone_e164":"+15551234567","status":"invited"}'
+```
+4. Test inbound SMS locally:
+- Use Twilio console webhook to point at `POST /sms/inbound`.
+- If local-only, use a tunnel such as ngrok (optional). Full steps are in `docs/sms.md`.

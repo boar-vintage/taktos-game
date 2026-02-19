@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import type { QueryResultRow } from 'pg';
 import dotenv from 'dotenv';
 import { z } from 'zod';
 
@@ -14,7 +15,7 @@ export const pool = new Pool({
   connectionString: DATABASE_URL
 });
 
-export async function query<T>(text: string, values?: unknown[]): Promise<T[]> {
+export async function query<T extends QueryResultRow>(text: string, values?: unknown[]): Promise<T[]> {
   const result = await pool.query<T>(text, values);
   return result.rows;
 }

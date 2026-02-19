@@ -4,9 +4,16 @@ import { z } from 'zod';
 import { env } from '../config/env.js';
 import { pool } from '../db/pool.js';
 import { appendEvent } from '../services/events.js';
-import { sanitizeChatInput } from '../utils/sanitize.js';
+import {
+  createUnlockTransaction,
+  emoteAction,
+  enterPlaceAction,
+  joinWorldAction,
+  leavePlaceAction,
+  sayAction
+} from '../services/gameplay.js';
 
-const stripe = new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: '2024-12-18.acacia' });
+const stripe = new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: '2025-02-24.acacia' });
 
 const enterSchema = z.object({ worldId: z.string().uuid(), placeId: z.string().uuid() });
 const joinWorldSchema = z.object({ worldId: z.string().uuid() });
@@ -18,68 +25,19 @@ const unlockSchema = z.object({ worldId: z.string().uuid(), placeId: z.string().
 const actionsRoutes: FastifyPluginAsync = async (app) => {
   app.post('/actions/join-world', { preHandler: [app.authenticate] }, async (request) => {
     const body = joinWorldSchema.parse(request.body);
-
-    await pool.query(
-      `INSERT INTO presence (user_id, world_id, place_id, status, last_seen_at)
-       VALUES ($1, $2, NULL, 'online', NOW())
-       ON CONFLICT (user_id)
-       DO UPDATE SET world_id = EXCLUDED.world_id, place_id = NULL, status = 'online', last_seen_at = NOW()`,
-      [request.user.userId, body.worldId]
-    );
-
-    const event = await appendEvent({
-      worldId: body.worldId,
-      userId: request.user.userId,
-      type: 'PlayerJoinedWorld',
-      payload: { userId: request.user.userId, worldId: body.worldId }
-    });
-    app.wsHub.broadcast(event);
-
+    await joinWorldAction({ app, worldId: body.worldId, userId: request.user.userId });
     return { ok: true };
   });
 
   app.post('/actions/enter-place', { preHandler: [app.authenticate] }, async (request) => {
     const body = enterSchema.parse(request.body);
-
-    await pool.query(
-      `INSERT INTO presence (user_id, world_id, place_id, status, last_seen_at)
-       VALUES ($1, $2, $3, 'online', NOW())
-       ON CONFLICT (user_id)
-       DO UPDATE SET world_id = EXCLUDED.world_id, place_id = EXCLUDED.place_id, status = 'online', last_seen_at = NOW()`,
-      [request.user.userId, body.worldId, body.placeId]
-    );
-
-    const event = await appendEvent({
-      worldId: body.worldId,
-      placeId: body.placeId,
-      userId: request.user.userId,
-      type: 'PlayerEnteredPlace',
-      payload: { userId: request.user.userId, placeId: body.placeId }
-    });
-    app.wsHub.broadcast(event);
-
+    await enterPlaceAction({ app, worldId: body.worldId, placeId: body.placeId, userId: request.user.userId });
     return { ok: true };
   });
 
   app.post('/actions/leave-place', { preHandler: [app.authenticate] }, async (request) => {
     const body = leaveSchema.parse(request.body);
-
-    await pool.query(
-      `INSERT INTO presence (user_id, world_id, place_id, status, last_seen_at)
-       VALUES ($1, $2, NULL, 'online', NOW())
-       ON CONFLICT (user_id)
-       DO UPDATE SET world_id = EXCLUDED.world_id, place_id = NULL, status = 'online', last_seen_at = NOW()`,
-      [request.user.userId, body.worldId]
-    );
-
-    const event = await appendEvent({
-      worldId: body.worldId,
-      userId: request.user.userId,
-      type: 'PlayerLeftPlace',
-      payload: { userId: request.user.userId }
-    });
-    app.wsHub.broadcast(event);
-
+    await leavePlaceAction({ app, worldId: body.worldId, userId: request.user.userId });
     return { ok: true };
   });
 
@@ -88,26 +46,22 @@ const actionsRoutes: FastifyPluginAsync = async (app) => {
     config: { rateLimit: { max: 8, timeWindow: '10 seconds' } }
   }, async (request, reply) => {
     const body = chatSchema.parse(request.body);
-    const msg = sanitizeChatInput(body.message);
-
-    if (!msg.normalized) {
-      reply.code(400).send({ error: 'Message is empty after sanitization' });
-      return;
-    }
-
-    const event = await appendEvent({
-      worldId: body.worldId,
-      placeId: body.placeId,
-      userId: request.user.userId,
-      type: 'ChatMessageSent',
-      payload: {
-        raw: msg.raw,
-        normalized: msg.normalized
+    try {
+      const normalized = await sayAction({
+        app,
+        worldId: body.worldId,
+        placeId: body.placeId,
+        userId: request.user.userId,
+        message: body.message
+      });
+      return { ok: true, message: normalized };
+    } catch (error) {
+      if ((error as Error).message === 'Message is empty after sanitization') {
+        reply.code(400).send({ error: 'Message is empty after sanitization' });
+        return;
       }
-    });
-    app.wsHub.broadcast(event);
-
-    return { ok: true, message: msg.normalized };
+      throw error;
+    }
   });
 
   app.post('/actions/emote', {
@@ -115,16 +69,7 @@ const actionsRoutes: FastifyPluginAsync = async (app) => {
     config: { rateLimit: { max: 10, timeWindow: '10 seconds' } }
   }, async (request) => {
     const body = emoteSchema.parse(request.body);
-
-    const event = await appendEvent({
-      worldId: body.worldId,
-      placeId: body.placeId,
-      userId: request.user.userId,
-      type: 'EmoteSent',
-      payload: { emote: body.emote.toUpperCase() }
-    });
-    app.wsHub.broadcast(event);
-
+    await emoteAction({ app, worldId: body.worldId, placeId: body.placeId, userId: request.user.userId, emote: body.emote });
     return { ok: true };
   });
 
@@ -137,33 +82,16 @@ const actionsRoutes: FastifyPluginAsync = async (app) => {
       return;
     }
 
-    const tx = await pool.query(
-      `INSERT INTO unlock_transactions (
-         world_id, place_id, job_id, buyer_user_id, status, price_cents, currency, origin_world_id, attribution_world_id
-       ) VALUES ($1, $2, $3, $4, 'created', $5, $6, $7, $8)
-       RETURNING *`,
-      [
-        body.worldId,
-        body.placeId,
-        body.jobId,
-        request.user.userId,
-        env.UNLOCK_PRICE_CENTS,
-        env.UNLOCK_CURRENCY,
-        body.originWorldId ?? body.worldId,
-        body.originWorldId ?? body.worldId
-      ]
-    );
-
-    const event = await appendEvent({
+    const transaction = await createUnlockTransaction({
+      app,
       worldId: body.worldId,
       placeId: body.placeId,
-      userId: request.user.userId,
-      type: 'ContactUnlockRequested',
-      payload: { transactionId: tx.rows[0]!.id, jobId: body.jobId }
+      jobId: body.jobId,
+      buyerUserId: request.user.userId,
+      originWorldId: body.originWorldId
     });
-    app.wsHub.broadcast(event);
 
-    return { transaction: tx.rows[0]! };
+    return { transaction };
   });
 
   app.post('/payments/checkout/:transactionId', { preHandler: [app.authenticate] }, async (request, reply) => {
