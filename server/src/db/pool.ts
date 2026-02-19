@@ -1,8 +1,17 @@
 import { Pool } from 'pg';
-import { env } from '../config/env.js';
+import dotenv from 'dotenv';
+import { z } from 'zod';
+
+dotenv.config();
+
+const dbEnv = z.object({
+  DATABASE_URL: z.string().url().default('postgres://taktos:taktos@localhost:5432/taktos')
+});
+
+const { DATABASE_URL } = dbEnv.parse(process.env);
 
 export const pool = new Pool({
-  connectionString: env.DATABASE_URL
+  connectionString: DATABASE_URL
 });
 
 export async function query<T>(text: string, values?: unknown[]): Promise<T[]> {
