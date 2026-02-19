@@ -20,6 +20,9 @@ class TerminalClient {
   private ws: WebSocket | null = null;
 
   async start() {
+    this.render();
+    this.log('Booting Taktos Terminal...');
+
     this.state.token = await loadToken();
 
     if (this.state.token) {
@@ -32,7 +35,15 @@ class TerminalClient {
       }
     }
 
-    await this.bootstrapWorld();
+    try {
+      await this.bootstrapWorld();
+      this.log('Connected to API.');
+    } catch (error) {
+      const message = (error as Error).message || 'unknown startup error';
+      this.log(`{yellow-fg}Startup warning:{/yellow-fg} ${message}`);
+      this.log('{yellow-fg}Backend may be offline. Start server with `pnpm dev` and run WORLD or MAP to retry.{/yellow-fg}');
+    }
+
     this.render();
     this.log('Type HELP for commands.');
 
