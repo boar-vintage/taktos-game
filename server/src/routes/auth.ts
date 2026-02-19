@@ -7,7 +7,7 @@ const signupSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   displayName: z.string().min(2).max(50),
-  role: z.enum(['jobseeker', 'employer', 'recruiter', 'admin']).default('jobseeker')
+  role: z.enum(['jobseeker', 'employer', 'recruiter', 'admin']).catch('jobseeker').default('jobseeker')
 });
 
 const loginSchema = z.object({

@@ -221,7 +221,10 @@ class TerminalClient {
       return;
     }
 
-    const [email, password, displayName, role = 'jobseeker'] = args;
+    const [email, password, displayName, roleInput] = args;
+    const allowedRoles = new Set(['jobseeker', 'employer', 'recruiter', 'admin']);
+    const normalizedRole = (roleInput ?? 'jobseeker').toLowerCase();
+    const role = allowedRoles.has(normalizedRole) ? normalizedRole : 'jobseeker';
     const res = await this.api.signup({ email, password, displayName, role });
     this.state.token = res.token;
     this.state.user = res.user;
