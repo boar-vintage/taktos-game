@@ -1,0 +1,77 @@
+openapi: 3.1.0
+info:
+  title: Taktos Core API
+  version: 0.1.0
+servers:
+  - url: http://localhost:4000/api
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+security:
+  - bearerAuth: []
+paths:
+  /auth/signup:
+    post:
+      summary: Create user account
+  /auth/login:
+    post:
+      summary: Login
+  /auth/me:
+    get:
+      summary: Current user profile
+  /worlds:
+    get:
+      summary: List worlds
+  /worlds/{worldId}/places:
+    get:
+      summary: List places for world
+  /places/{placeId}:
+    get:
+      summary: Place details
+  /places/{placeId}/jobs:
+    get:
+      summary: List jobs in place
+  /actions/join-world:
+    post:
+      summary: Set presence in world
+  /actions/enter-place:
+    post:
+      summary: Enter place
+  /actions/leave-place:
+    post:
+      summary: Leave place
+  /actions/say:
+    post:
+      summary: Send chat message
+  /actions/emote:
+    post:
+      summary: Send emote
+  /actions/unlock:
+    post:
+      summary: Create unlock transaction
+  /payments/checkout/{transactionId}:
+    post:
+      summary: Create Stripe checkout session (stub in local)
+  /payments/simulate/{transactionId}:
+    post:
+      summary: Mark unlock paid in dev
+  /payments/webhook:
+    post:
+      summary: Webhook stub to complete unlock
+  /federation/portals:
+    get:
+      summary: List portals
+  /federation/worlds:
+    post:
+      summary: Create satellite world (admin)
+  /federation/satellite-agreements:
+    get:
+      summary: List rev-share agreements
+  /federation/attribution-rules:
+    get:
+      summary: List attribution decay rules
+    post:
+      summary: Create attribution rule (admin)

@@ -1,0 +1,15 @@
+{
+  "name": "taktos-core-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.4.1",
+  "scripts": {
+    "dev": "pnpm --filter @taktos/server dev",
+    "terminal": "pnpm --filter @taktos/terminal dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "migrate": "pnpm --filter @taktos/server migrate",
+    "seed": "pnpm --filter @taktos/server seed"
+  }
+}
