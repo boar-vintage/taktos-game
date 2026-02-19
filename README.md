@@ -141,6 +141,53 @@ pnpm terminal
 - SMS webhook endpoint: `POST /sms/inbound`
 - SMS docs: `docs/sms.md`
 
+## HTML Client (Blue Link City)
+- Routes are server-rendered HTML with no CSS and no JavaScript.
+- Auth uses existing JWTs, stored in HttpOnly cookie `takt_jwt`.
+- Login/signup/logout pages:
+  - `GET /html/login`
+  - `POST /html/login`
+  - `GET /html/signup`
+  - `POST /html/signup`
+  - `GET /html/logout`
+- Main world navigation:
+  - `GET /html`
+  - `GET /html/world/:worldSlug/mainstreet`
+  - `GET /html/place/:placeId`
+  - `GET /html/job/:jobId`
+- Link-driven actions with signed links (no JS forms in-world):
+  - `GET /html/act/wave`
+  - `GET /html/act/say`
+  - `GET /html/unlock/:jobId`
+  - `GET /html/talk/choose`
+  - `GET /html/talk/send`
+  - `GET /html/dm/:userId`
+
+### HTML Run Steps
+1. Ensure server env includes:
+```bash
+ACTION_LINK_SECRET=dev-action-link-secret-123
+HTML_ONLINE_WINDOW_SECONDS=90
+```
+2. Start backend:
+```bash
+pnpm dev
+```
+3. Open browser at:
+```text
+http://localhost:4000/html/login
+```
+
+### Blue Link City Demo (2 browsers)
+1. Browser A: sign up/login at `http://localhost:4000/html/signup` then open `http://localhost:4000/html/world/core/mainstreet`.
+2. Browser B: sign up/login as another user and open the same main street URL.
+3. Refresh both pages; each user appears in “People nearby”.
+4. Browser A enters a place from main street; refresh Browser B and A to see presence move.
+5. Use link actions:
+- Wave from main street/place.
+- Send canned say links.
+- Use “Talk to ...” and choose canned dialog wheel links.
+
 ## SMS Admin Quickstart
 1. Create an admin JWT (signup/login via `/api/auth/*`).
 2. Create invite code:

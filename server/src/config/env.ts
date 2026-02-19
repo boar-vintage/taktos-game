@@ -19,7 +19,9 @@ const envSchema = z.object({
   SMS_MAX_OUTBOUND_PER_DAY: z.coerce.number().int().positive().default(30),
   SMS_BURST_LIMIT_PER_SEC: z.coerce.number().positive().default(1),
   SMS_SUPPORT_URL: z.string().default('https://example.local/support'),
-  SMS_UNLOCK_BASE_URL: z.string().default('https://example.local')
+  SMS_UNLOCK_BASE_URL: z.string().default('https://example.local'),
+  ACTION_LINK_SECRET: z.string().min(16).default('dev-action-link-secret-123'),
+  HTML_ONLINE_WINDOW_SECONDS: z.coerce.number().int().min(60).max(120).default(90)
 });
 
 export const env = envSchema.parse(process.env);

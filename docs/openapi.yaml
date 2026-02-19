@@ -64,6 +64,37 @@ paths:
   /sms/inbound:
     post:
       summary: Twilio inbound SMS webhook
+  /html/login:
+    get:
+      summary: HTML login form (JWT cookie)
+    post:
+      summary: HTML login submit (sets JWT cookie)
+  /html/signup:
+    get:
+      summary: HTML signup form
+    post:
+      summary: HTML signup submit (sets JWT cookie)
+  /html/logout:
+    get:
+      summary: HTML logout (clears JWT cookie)
+  /html/world/{worldSlug}/mainstreet:
+    get:
+      summary: Blue Link City main street page
+  /html/place/{placeId}:
+    get:
+      summary: Blue Link City place page
+  /html/job/{jobId}:
+    get:
+      summary: Blue Link City job page
+  /html/act/wave:
+    get:
+      summary: Signed HTML wave action
+  /html/act/say:
+    get:
+      summary: Signed HTML canned say action
+  /html/unlock/{jobId}:
+    get:
+      summary: Signed HTML unlock action
   /admin/sms/invites:
     post:
       summary: Create SMS invite code (admin)

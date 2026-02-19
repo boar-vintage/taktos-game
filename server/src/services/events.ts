@@ -8,7 +8,8 @@ export type EventType =
   | 'EmoteSent'
   | 'JobViewed'
   | 'ContactUnlockRequested'
-  | 'ContactUnlocked';
+  | 'ContactUnlocked'
+  | 'DMMessageSent';
 
 export interface AppEvent {
   id: number;
