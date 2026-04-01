@@ -12,7 +12,10 @@ const dbEnv = z.object({
 const { DATABASE_URL } = dbEnv.parse(process.env);
 
 export const pool = new Pool({
-  connectionString: DATABASE_URL
+  connectionString: DATABASE_URL,
+  ssl: DATABASE_URL.includes('localhost') || DATABASE_URL.includes('127.0.0.1')
+    ? false
+    : { rejectUnauthorized: false }
 });
 
 export async function query<T extends QueryResultRow>(text: string, values?: unknown[]): Promise<T[]> {
