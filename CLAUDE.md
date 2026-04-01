@@ -56,7 +56,7 @@ For the roadamp look in /docs/roadmap/roadmap.md
 
 **Event model:** `events` is append-only. Current state lives in `presence`, `places`, `jobs`, `unlock_transactions`. WebSocket subscriptions are scoped to `(world_id, place_id?)` via `services/wsHub.ts`.
 
-**HTML rendering:** No framework — `services/html/render.ts` exports `e()` (HTML-escape), `link()`, and `page()` helpers. All in-world actions use signed one-time links (`services/html/signedLinks.ts`) rather than forms, so no JS is required client-side.
+**HTML rendering:** No framework — `services/html/render.ts` exports `e()` (HTML-escape), `link()`, and `page()` helpers. All in-world actions use signed one-time links (`services/html/signedLinks.ts`) rather than forms, so no JS is required client-side. The `/html/*` routes have no client-side JavaScript, which eliminates DOM XSS entirely. XSS protection relies on `e()` being applied to every piece of user-controlled content — never interpolate user data into HTML template strings without it. `link()` already calls `e()` on both href and text. The `/admin` route is the only exception: it includes D3 + Bootstrap and uses `jsonForScript()` (which escapes `<`) for any data embedded in `<script>` tags.
 
 **SMS client:** Invite-only Twilio integration in `services/sms/`. Policy enforcement (quotas, STOP/START/HELP compliance) lives in `services/sms/policy.ts`.
 
