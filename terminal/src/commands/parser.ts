@@ -36,7 +36,7 @@ export function parseCommand(input: string): ParsedCommand {
     return { name: 'NUMERIC', args: [trimmed], raw: input };
   }
 
-  const [head, ...rest] = trimmed.split(/\s+/);
+  const [head = '', ...rest] = trimmed.split(/\s+/);
   const upper = head.toUpperCase();
 
   if (upper === 'SAY') {

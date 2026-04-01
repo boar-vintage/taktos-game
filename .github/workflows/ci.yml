@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: taktos
+          POSTGRES_USER: taktos
+          POSTGRES_PASSWORD: taktos
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U taktos -d taktos"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://taktos:taktos@localhost:5432/taktos
+      JWT_SECRET: ci-jwt-secret-not-for-production-use
+      ACTION_LINK_SECRET: ci-action-link-secret-not-for-prod
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Migrate
+        run: pnpm migrate
+
+      - name: Test
+        run: pnpm test

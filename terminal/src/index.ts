@@ -86,7 +86,7 @@ class TerminalClient {
       this.sendSubscription();
     });
 
-    this.ws.on('message', (buf) => {
+    this.ws.on('message', (buf: import('ws').RawData) => {
       try {
         const data = JSON.parse(buf.toString()) as WsEvent;
         this.handleWs(data);
@@ -231,7 +231,7 @@ class TerminalClient {
       return;
     }
 
-    const [email, password, displayName, roleInput] = args;
+    const [email, password, displayName, roleInput] = args as [string, string, string, string?];
     const allowedRoles = new Set(['jobseeker', 'employer', 'recruiter', 'admin']);
     const normalizedRole = (roleInput ?? 'jobseeker').toLowerCase();
     const role = allowedRoles.has(normalizedRole) ? normalizedRole : 'jobseeker';
@@ -253,7 +253,7 @@ class TerminalClient {
       return;
     }
 
-    const [email, password] = args;
+    const [email, password] = args as [string, string];
     const res = await this.api.login({ email, password });
     this.state.token = res.token;
     this.state.user = res.user;
