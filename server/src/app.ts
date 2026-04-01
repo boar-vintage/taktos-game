@@ -43,7 +43,7 @@ export function buildApp() {
       return;
     }
 
-    app.log.error(error);
+    app.log.error(error instanceof Error ? error : new Error(String(error)));
     reply.code(error.statusCode ?? 500).send({ error: 'Internal server error' });
   });
 
