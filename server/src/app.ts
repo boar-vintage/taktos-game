@@ -44,7 +44,8 @@ export function buildApp() {
     }
 
     app.log.error(error instanceof Error ? error : new Error(String(error)));
-    reply.code(error.statusCode ?? 500).send({ error: 'Internal server error' });
+    const statusCode = (error as { statusCode?: number }).statusCode ?? 500;
+    reply.code(statusCode).send({ error: 'Internal server error' });
   });
 
   app.get('/health', async () => ({ ok: true }));
