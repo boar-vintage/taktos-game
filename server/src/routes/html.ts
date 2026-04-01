@@ -8,6 +8,7 @@ import { authenticateHtmlCookie, buildClearedJwtCookie, buildJwtCookie } from '.
 import { markHtmlPresenceOnline, touchPresenceLastSeen } from '../services/html/presence.js';
 import { e, link, page } from '../services/html/render.js';
 import { buildSignedPath, verifySignedActionToken } from '../services/html/signedLinks.js';
+import { isUserBlocked } from '../services/adminAccess.js';
 import { hashPassword, verifyPassword } from '../utils/auth.js';
 import { sanitizeChatInput } from '../utils/sanitize.js';
 
@@ -207,6 +208,12 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
       return page('Login Failed', ['<h1>Invalid credentials</h1>', `<p>${link('/html/login', 'Try again')}</p>`]);
     }
 
+    if (await isUserBlocked(user.rows[0]!.id)) {
+      ensureHtml(reply);
+      reply.code(403);
+      return page('Account Blocked', ['<h1>Account blocked by admin</h1>', `<p>${link('/html/login', 'Back to login')}</p>`]);
+    }
+
     const token = await reply.jwtSign({
       userId: user.rows[0]!.id,
       email: user.rows[0]!.email,
@@ -332,7 +339,7 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
     return page('Blue Link City Main Street', [
       '<h1>Blue Link City</h1>',
       `<p>You are on Main Street (${e(world.name)}).</p>`,
-      `<p>${link('/html/logout', 'Logout')}</p>`,
+      `<p>${request.user.role === 'admin' ? `${link('/admin', 'Admin Control Center')} | ` : ''}${link('/html/logout', 'Logout')}</p>`,
       '<h2>Places</h2>',
       `<ul>${places.rows
         .map((p) => `<li>${link(`/html/place/${p.id}`, `${p.name} (${p.online_count} online)`)}</li>`)

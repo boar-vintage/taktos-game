@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { isUserBlocked } from '../adminAccess.js';
 
 export const HTML_JWT_COOKIE = 'takt_jwt';
 
@@ -60,6 +61,13 @@ export async function authenticateHtmlCookie(input: {
       email: string;
       role: string;
     }>(token);
+
+    const blocked = await isUserBlocked(payload.userId);
+    if (blocked) {
+      input.reply.header('Set-Cookie', buildClearedJwtCookie());
+      redirectToLogin(input.reply, '/html/login');
+      return false;
+    }
 
     (input.request as FastifyRequest & {
       user: { userId: string; email: string; role: string };

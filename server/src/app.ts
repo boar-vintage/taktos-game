@@ -10,6 +10,7 @@ import actionsRoutes from './routes/actions.js';
 import federationRoutes from './routes/federation.js';
 import smsRoutes from './routes/sms.js';
 import adminSmsRoutes from './routes/adminSms.js';
+import adminHtmlRoutes from './routes/adminHtml.js';
 import htmlRoutes from './routes/html.js';
 import { WsHub } from './services/wsHub.js';
 import { ZodError } from 'zod';
@@ -52,6 +53,7 @@ export function buildApp() {
   app.register(actionsRoutes, { prefix: '/api' });
   app.register(federationRoutes, { prefix: '/api' });
   app.register(adminSmsRoutes);
+  app.register(adminHtmlRoutes);
   app.register(smsRoutes);
   app.register(htmlRoutes);
 

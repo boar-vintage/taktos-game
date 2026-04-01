@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { pool } from '../db/pool.js';
+import { isUserBlocked } from '../services/adminAccess.js';
 import { hashPassword, verifyPassword } from '../utils/auth.js';
 
 const signupSchema = z.object({
@@ -66,6 +67,11 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const user = result.rows[0]!;
+    if (await isUserBlocked(user.id)) {
+      reply.code(403).send({ error: 'Account blocked by admin' });
+      return;
+    }
+
     const valid = await verifyPassword(body.password, user.password_hash);
     if (!valid) {
       reply.code(401).send({ error: 'Invalid credentials' });
