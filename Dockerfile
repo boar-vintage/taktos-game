@@ -35,5 +35,5 @@ COPY --from=builder /app/server/dist ./server/dist
 ENV NODE_ENV=production
 EXPOSE 4000
 
-# Run migrations then start server
-CMD ["sh", "-c", "node server/dist/db/migrate.js && node server/dist/index.js"]
+# Run migrations, seed world data, then start server
+CMD ["sh", "-c", "node server/dist/db/migrate.js && node server/dist/db/seed.js && node server/dist/index.js"]
