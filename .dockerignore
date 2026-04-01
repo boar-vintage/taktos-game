@@ -1,0 +1,10 @@
+node_modules
+**/node_modules
+**/dist
+.git
+.env
+server/.env
+terminal/.env
+docs
+terminal/src
+terminal/test
