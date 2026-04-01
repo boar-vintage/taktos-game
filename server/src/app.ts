@@ -43,7 +43,8 @@ export function buildApp() {
       return;
     }
 
-    reply.code(500).send({ error: 'Internal server error' });
+    app.log.error(error);
+    reply.code(error.statusCode ?? 500).send({ error: 'Internal server error' });
   });
 
   app.get('/health', async () => ({ ok: true }));
