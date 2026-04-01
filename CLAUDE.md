@@ -29,6 +29,9 @@ Start Postgres:
 docker compose up -d
 ```
 
+## Product
+For the roadamp look in /docs/roadmap/roadmap.md
+
 ## Architecture
 
 ### Monorepo layout
