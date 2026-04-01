@@ -2,27 +2,27 @@
 
 ## Phase 0 — Three Client Modalities
 
-- [ ] Formalize tak tak as a named mechanic in the API (distinct from generic WAVE)
-- [ ] Add tak tak to the terminal client
-- [ ] Add resume drop to all three clients (API, terminal, Blue Link City)
-- [ ] Add businesses as a distinct entity from places (data model + API)
+- [x] Formalize tak tak as a named mechanic in the API (distinct from generic WAVE)
+- [x] Add tak tak to the terminal client
+- [x] Add resume drop to all three clients (API, terminal, Blue Link City)
+- [x] Add businesses as a distinct entity from places (data model + API)
 
 ## Phase 1 — Core Features
 
 ### Businesses
-- [ ] Business data model (name, description, category, logo, open roles)
+- [x] Business data model (name, description, category, logo, open roles)
 - [ ] Business import / seed flow (manual or API-driven, e.g. Google Places)
 - [ ] Link places to businesses in the world
 
 ### Resume Drop
-- [ ] `business_aspirations` table (user_id, business_id, saved_at, resume_dropped_at, still_interested, expires_at)
-- [ ] Drop resume action in API, terminal, and Blue Link City
+- [x] `resume_drops` table (user_id, place_id, dropped_at, still_interested, expires_at)
+- [x] Drop resume action in API, terminal, and Blue Link City
 - [ ] Save/wishlist a business (separate from dropping a resume)
 - [ ] "Still interested" renewal flow + auto-expiry (~180 days)
 - [ ] Jobseeker controls: visibility toggle, photo toggle, see who unlocked me
 
 ### Tak Tak
-- [ ] Define tak tak as a distinct event type in the event stream
+- [x] Define tak tak as a distinct event type in the event stream
 - [ ] Mutual acknowledgment flow (request → accept/ignore)
 - [ ] Connection record persisted after accepted tak tak
 - [ ] Rate limiting / cooldown

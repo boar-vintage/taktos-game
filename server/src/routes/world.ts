@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { pool } from '../db/pool.js';
-import { getPlace, listJobs, listPlaces } from '../services/gameplay.js';
+import { getPlace, listJobs, listNearbyUsers, listPlaces } from '../services/gameplay.js';
 
 const worldRoutes: FastifyPluginAsync = async (app) => {
   app.get('/worlds', async () => {
@@ -47,6 +47,52 @@ const worldRoutes: FastifyPluginAsync = async (app) => {
   app.get('/places/:placeId/jobs', { preHandler: [app.authenticate] }, async (request) => {
     const params = request.params as { placeId: string };
     return { jobs: await listJobs(params.placeId, { app, userId: request.user.userId }) };
+  });
+
+  app.get('/worlds/:worldId/presence', { preHandler: [app.authenticate] }, async (request) => {
+    const params = request.params as { worldId: string };
+    const query = request.query as { placeId?: string };
+    return { users: await listNearbyUsers(params.worldId, query.placeId ?? null, request.user.userId) };
+  });
+
+  app.get('/businesses', async () => {
+    const result = await pool.query<{
+      id: string;
+      name: string;
+      description: string;
+      category: string;
+      address_text: string;
+      logo_url: string | null;
+      created_at: string;
+    }>('SELECT id, name, description, category, address_text, logo_url, created_at FROM businesses ORDER BY name ASC');
+
+    return { businesses: result.rows };
+  });
+
+  app.get('/businesses/:businessId', async (request, reply) => {
+    const params = request.params as { businessId: string };
+
+    const business = await pool.query<{
+      id: string;
+      name: string;
+      description: string;
+      category: string;
+      address_text: string;
+      logo_url: string | null;
+      created_at: string;
+    }>('SELECT id, name, description, category, address_text, logo_url, created_at FROM businesses WHERE id = $1', [params.businessId]);
+
+    if (!business.rowCount) {
+      reply.code(404).send({ error: 'Business not found' });
+      return;
+    }
+
+    const places = await pool.query<{ id: string; name: string; world_id: string }>(
+      'SELECT id, name, world_id FROM places WHERE business_id = $1 ORDER BY created_at ASC',
+      [params.businessId]
+    );
+
+    return { business: business.rows[0]!, places: places.rows };
   });
 };
 

@@ -11,6 +11,8 @@ export type CommandName =
   | 'WHO'
   | 'SAY'
   | 'WAVE'
+  | 'TAK'
+  | 'DROP'
   | 'UNLOCK'
   | 'PROFILE'
   | 'WORLD'
@@ -53,6 +55,8 @@ export function parseCommand(input: string): ParsedCommand {
     'JOBS',
     'WHO',
     'WAVE',
+    'TAK',
+    'DROP',
     'UNLOCK',
     'PROFILE',
     'WORLD',

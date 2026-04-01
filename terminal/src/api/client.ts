@@ -79,6 +79,19 @@ export class ApiClient {
     return this.request<{ ok: boolean }>('/actions/emote', { method: 'POST', token, body: { worldId, placeId, emote } });
   }
 
+  takTak(worldId: string, targetUserId: string, token: string, placeId?: string) {
+    return this.request<{ ok: boolean }>('/actions/tak-tak', { method: 'POST', token, body: { worldId, placeId, targetUserId } });
+  }
+
+  dropResume(worldId: string, placeId: string, token: string) {
+    return this.request<{ ok: boolean }>('/actions/drop-resume', { method: 'POST', token, body: { worldId, placeId } });
+  }
+
+  presence(worldId: string, token: string, placeId?: string) {
+    const qs = placeId ? `?placeId=${encodeURIComponent(placeId)}` : '';
+    return this.request<{ users: Array<{ id: string; display_name: string; role: string }> }>(`/worlds/${worldId}/presence${qs}`, { token });
+  }
+
   unlock(worldId: string, placeId: string, jobId: string, token: string) {
     return this.request<{ transaction: { id: string } }>('/actions/unlock', {
       method: 'POST',

@@ -148,6 +148,14 @@ function formatPlaceEvent(row: {
     return `${name} unlocked contact access`;
   }
 
+  if (row.type === 'TakTakSent') {
+    return `${name} sent a tak tak`;
+  }
+
+  if (row.type === 'ResumeDropped') {
+    return `${name} dropped a resume here`;
+  }
+
   if (row.type === 'DMMessageSent') {
     return `${name} sent a private message`;
   }
@@ -347,7 +355,7 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
       '<h2>People nearby</h2>',
       nearby.rows.length
         ? `<ul>${nearby.rows
-            .map((person) => `<li>${link(`/html/talk/choose?to=${person.id}&next=${encodeURIComponent(selfPath)}`, `Talk to ${person.display_name}`)}</li>`)
+            .map((person) => `<li>${link(`/html/talk/choose?to=${person.id}&next=${encodeURIComponent(selfPath)}`, `Tak tak → ${person.display_name}`)}</li>`)
             .join('')}</ul>`
         : '<p>No one nearby right now.</p>',
       '<h2>Actions</h2>',
@@ -413,7 +421,7 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
        FROM events e
        LEFT JOIN users u ON u.id = e.user_id
        WHERE e.place_id = $1
-         AND e.type IN ('ChatMessageSent', 'EmoteSent', 'ContactUnlockRequested', 'ContactUnlocked', 'DMMessageSent')
+         AND e.type IN ('ChatMessageSent', 'EmoteSent', 'TakTakSent', 'ResumeDropped', 'ContactUnlockRequested', 'ContactUnlocked', 'DMMessageSent')
        ORDER BY e.id DESC
        LIMIT 20`,
       [row.id]
@@ -442,6 +450,12 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
       action: 'say',
       params: { msg: 'hiring', ctx: 'place', placeId: row.id, next: selfPath }
     });
+    const dropResume = getSignedActionLink({
+      path: '/html/act/drop-resume',
+      userId: request.user.userId,
+      action: 'drop-resume',
+      params: { placeId: row.id, worldId: row.world_id, next: selfPath }
+    });
 
     ensureHtml(reply);
     return page(`Place: ${row.name}`, [
@@ -451,7 +465,7 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
       '<h2>People here now</h2>',
       peopleHere.rows.length
         ? `<ul>${peopleHere.rows
-            .map((person) => `<li>${link(`/html/talk/choose?to=${person.id}&next=${encodeURIComponent(selfPath)}`, `Talk to ${person.display_name}`)}</li>`)
+            .map((person) => `<li>${link(`/html/talk/choose?to=${person.id}&next=${encodeURIComponent(selfPath)}`, `Tak tak → ${person.display_name}`)}</li>`)
             .join('')}</ul>`
         : '<p>No one else here now.</p>',
       '<h2>Recent events</h2>',
@@ -463,7 +477,7 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
         ? `<ul>${jobs.rows.map((job) => `<li>${link(`/html/job/${job.id}`, job.title)}</li>`).join('')}</ul>`
         : '<p>No active jobs.</p>',
       '<h2>Actions</h2>',
-      `<ul><li>${link(wave, 'Wave')}</li><li>${link(say, 'Say: "are you hiring?"')}</li></ul>`,
+      `<ul><li>${link(wave, 'Wave')}</li><li>${link(say, 'Say: "are you hiring?"')}</li><li>${link(dropResume, 'Drop resume here')}</li></ul>`,
       `<p>${link(selfPath, 'Refresh')}</p>`
     ]);
   });
@@ -550,7 +564,7 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
 
     ensureHtml(reply);
     return page('Talk Menu', [
-      `<h1>Talk to ${e(target.rows[0]!.display_name)}</h1>`,
+      `<h1>Tak tak → ${e(target.rows[0]!.display_name)}</h1>`,
       '<ul>',
       ...Object.keys(dmKeys).map((key) => {
         const msgKey = key as DmKey;
@@ -746,6 +760,50 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
         normalized: sanitized.normalized,
         source: 'html'
       }
+    });
+    app.wsHub.broadcast(event);
+
+    reply.code(302).header('Location', next).send();
+  });
+
+  app.get('/html/act/drop-resume', {
+    config: { rateLimit: { max: 5, timeWindow: '30 seconds' } }
+  }, async (request, reply) => {
+    const query = request.query as { placeId?: string; worldId?: string; next?: string; exp?: string; sig?: string };
+    const next = safeRedirectPath(query.next, '/html');
+
+    if (!query.placeId || !query.worldId || !idSchema.safeParse(query.placeId).success || !idSchema.safeParse(query.worldId).success) {
+      ensureHtml(reply);
+      reply.code(400);
+      return page('Bad Request', ['<h1>Invalid drop resume request</h1>']);
+    }
+
+    const paramsForSig: Record<string, string> = {
+      placeId: query.placeId,
+      worldId: query.worldId,
+      next
+    };
+
+    if (!validateSignature({ userId: request.user.userId, action: 'drop-resume', params: paramsForSig, exp: query.exp, sig: query.sig })) {
+      ensureHtml(reply);
+      reply.code(403);
+      return page('Forbidden', ['<h1>Invalid or expired action link</h1>']);
+    }
+
+    await pool.query(
+      `INSERT INTO resume_drops (user_id, place_id, dropped_at, still_interested, expires_at)
+       VALUES ($1, $2, NOW(), TRUE, NOW() + INTERVAL '180 days')
+       ON CONFLICT (user_id, place_id)
+       DO UPDATE SET dropped_at = NOW(), still_interested = TRUE, expires_at = NOW() + INTERVAL '180 days'`,
+      [request.user.userId, query.placeId]
+    );
+
+    const event = await appendEvent({
+      worldId: query.worldId,
+      placeId: query.placeId,
+      userId: request.user.userId,
+      type: 'ResumeDropped',
+      payload: { placeId: query.placeId }
     });
     app.wsHub.broadcast(event);
 

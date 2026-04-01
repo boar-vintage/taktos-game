@@ -6,6 +6,8 @@ export type EventType =
   | 'PlayerLeftPlace'
   | 'ChatMessageSent'
   | 'EmoteSent'
+  | 'TakTakSent'
+  | 'ResumeDropped'
   | 'JobViewed'
   | 'ContactUnlockRequested'
   | 'ContactUnlocked'

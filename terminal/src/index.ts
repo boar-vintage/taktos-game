@@ -6,7 +6,7 @@ import { HELP_TEXT } from './commands/help.js';
 import { createInitialState } from './state/store.js';
 import { createLayout } from './ui/layout.js';
 import { loadToken, saveToken } from './utils/storage.js';
-import type { MenuMode, WsEvent } from './types.js';
+import type { MenuMode, NearbyUser, WsEvent } from './types.js';
 
 dotenv.config();
 
@@ -129,6 +129,10 @@ class TerminalClient {
 
       if (type === 'ChatMessageSent') {
         this.log(`{cyan-fg}[CHAT]{/cyan-fg} ${String(data.normalized ?? '')}`);
+      } else if (type === 'TakTakSent') {
+        this.log(`{magenta-fg}[TAK TAK]{/magenta-fg} ${String(data.toUserId ?? '')}`);
+      } else if (type === 'ResumeDropped') {
+        this.log(`{green-fg}[RESUME]{/green-fg} Resume dropped at ${String(data.placeId ?? '')}`);
       } else if (type === 'EmoteSent') {
         this.log(`{magenta-fg}[EMOTE]{/magenta-fg} ${String(data.emote ?? 'WAVE')}`);
       } else if (type === 'PlayerEnteredPlace') {
@@ -181,7 +185,13 @@ class TerminalClient {
           await this.handleJobs();
           break;
         case 'WHO':
-          this.log(`World online: ${this.state.onlineWorld}, Place online: ${this.state.onlinePlace}`);
+          await this.handleWho();
+          break;
+        case 'TAK':
+          await this.handleTak(args);
+          break;
+        case 'DROP':
+          await this.handleDrop();
           break;
         case 'SAY':
           await this.handleSay(args);
@@ -376,6 +386,68 @@ class TerminalClient {
     await this.api.say(this.state.currentWorld.id, this.state.currentPlace.id, msg, token);
   }
 
+  private async handleWho() {
+    if (!this.state.currentWorld) {
+      this.log('Not in a world');
+      return;
+    }
+
+    const token = this.requireAuth();
+    const result = await this.api.presence(
+      this.state.currentWorld.id,
+      token,
+      this.state.currentPlace?.id
+    );
+    this.state.nearbyUsers = result.users as NearbyUser[];
+    this.state.activeMenu = 'who';
+
+    if (!result.users.length) {
+      this.log('No one nearby right now.');
+      return;
+    }
+
+    this.log(result.users.map((u, i) => `${i + 1}. ${u.display_name} (${u.role})`).join('\n'));
+  }
+
+  private async handleTak(args: string[]) {
+    if (!this.state.currentWorld) {
+      this.log('Not in a world');
+      return;
+    }
+
+    if (!args.length) {
+      this.log('Usage: TAK <who#>  (run WHO first to list nearby users)');
+      return;
+    }
+
+    const idx = Number(args[0]) - 1;
+    const target = this.state.nearbyUsers[idx];
+    if (!target) {
+      this.log('Invalid user index. Run WHO to refresh the list.');
+      return;
+    }
+
+    const token = this.requireAuth();
+    await this.api.takTak(
+      this.state.currentWorld.id,
+      target.id,
+      token,
+      this.state.currentPlace?.id
+    );
+    this.log(`Tak tak → ${target.display_name}`);
+  }
+
+  private async handleDrop() {
+    if (!this.state.currentWorld || !this.state.currentPlace) {
+      this.log('Enter a place first');
+      return;
+    }
+
+    const token = this.requireAuth();
+    await this.api.dropResume(this.state.currentWorld.id, this.state.currentPlace.id, token);
+    this.log(`Resume dropped at ${this.state.currentPlace.name}`);
+  }
+
   private async handleWave() {
     if (!this.state.currentWorld || !this.state.currentPlace) {
       this.log('Enter a place first');
@@ -433,6 +505,9 @@ class TerminalClient {
       case 'jobs':
         await this.handleUnlock([String(value)]);
         break;
+      case 'who':
+        await this.handleTak([String(value)]);
+        break;
       default:
         this.log('No active menu for numeric shortcut');
     }
@@ -462,6 +537,7 @@ class TerminalClient {
         `Online place: ${this.state.onlinePlace}`,
         `Places loaded: ${this.state.places.length}`,
         `Jobs loaded: ${this.state.jobs.length}`,
+        `Nearby users: ${this.state.nearbyUsers.length}`,
         `Active menu: ${this.state.activeMenu ?? '-'}`
       ].join('\n')
     );

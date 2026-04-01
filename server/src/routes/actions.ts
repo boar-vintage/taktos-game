@@ -6,11 +6,13 @@ import { pool } from '../db/pool.js';
 import { appendEvent } from '../services/events.js';
 import {
   createUnlockTransaction,
+  dropResumeAction,
   emoteAction,
   enterPlaceAction,
   joinWorldAction,
   leavePlaceAction,
-  sayAction
+  sayAction,
+  takTakAction
 } from '../services/gameplay.js';
 
 const stripe = new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: '2025-02-24.acacia' });
@@ -20,6 +22,8 @@ const joinWorldSchema = z.object({ worldId: z.string().uuid() });
 const leaveSchema = z.object({ worldId: z.string().uuid() });
 const chatSchema = z.object({ worldId: z.string().uuid(), placeId: z.string().uuid(), message: z.string().min(1).max(500) });
 const emoteSchema = z.object({ worldId: z.string().uuid(), placeId: z.string().uuid(), emote: z.string().min(1).max(32).default('WAVE') });
+const takTakSchema = z.object({ worldId: z.string().uuid(), placeId: z.string().uuid().optional(), targetUserId: z.string().uuid() });
+const dropResumeSchema = z.object({ worldId: z.string().uuid(), placeId: z.string().uuid() });
 const unlockSchema = z.object({ worldId: z.string().uuid(), placeId: z.string().uuid(), jobId: z.string().uuid(), originWorldId: z.string().uuid().optional() });
 
 const actionsRoutes: FastifyPluginAsync = async (app) => {
@@ -70,6 +74,58 @@ const actionsRoutes: FastifyPluginAsync = async (app) => {
   }, async (request) => {
     const body = emoteSchema.parse(request.body);
     await emoteAction({ app, worldId: body.worldId, placeId: body.placeId, userId: request.user.userId, emote: body.emote });
+    return { ok: true };
+  });
+
+  app.post('/actions/tak-tak', {
+    preHandler: [app.authenticate],
+    config: { rateLimit: { max: 10, timeWindow: '10 seconds' } }
+  }, async (request, reply) => {
+    const body = takTakSchema.parse(request.body);
+
+    if (body.targetUserId === request.user.userId) {
+      reply.code(400).send({ error: 'Cannot tak tak yourself' });
+      return;
+    }
+
+    const target = await pool.query<{ id: string }>(
+      `SELECT u.id FROM users u
+       JOIN presence pr ON pr.user_id = u.id
+       WHERE u.id = $1 AND pr.world_id = $2 AND pr.status = 'online'`,
+      [body.targetUserId, body.worldId]
+    );
+
+    if (!target.rowCount) {
+      reply.code(404).send({ error: 'User not found in this world' });
+      return;
+    }
+
+    await takTakAction({
+      app,
+      worldId: body.worldId,
+      placeId: body.placeId ?? null,
+      fromUserId: request.user.userId,
+      toUserId: body.targetUserId
+    });
+
+    return { ok: true };
+  });
+
+  app.post('/actions/drop-resume', { preHandler: [app.authenticate] }, async (request, reply) => {
+    const body = dropResumeSchema.parse(request.body);
+
+    const place = await pool.query<{ id: string }>(
+      'SELECT id FROM places WHERE id = $1 AND world_id = $2',
+      [body.placeId, body.worldId]
+    );
+
+    if (!place.rowCount) {
+      reply.code(404).send({ error: 'Place not found in this world' });
+      return;
+    }
+
+    await dropResumeAction({ app, worldId: body.worldId, placeId: body.placeId, userId: request.user.userId });
+
     return { ok: true };
   });
 

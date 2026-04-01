@@ -34,7 +34,13 @@ export interface Job {
   is_active: boolean;
 }
 
-export type MenuMode = 'places' | 'worlds' | 'jobs' | null;
+export interface NearbyUser {
+  id: string;
+  display_name: string;
+  role: string;
+}
+
+export type MenuMode = 'places' | 'worlds' | 'jobs' | 'who' | null;
 
 export interface ClientState {
   apiUrl: string;
@@ -46,6 +52,7 @@ export interface ClientState {
   places: Place[];
   currentPlace: Place | null;
   jobs: Job[];
+  nearbyUsers: NearbyUser[];
   activeMenu: MenuMode;
   onlineWorld: number;
   onlinePlace: number;

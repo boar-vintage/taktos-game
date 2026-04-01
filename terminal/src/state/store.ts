@@ -11,6 +11,7 @@ export function createInitialState(apiUrl: string, wsUrl: string): ClientState {
     places: [],
     currentPlace: null,
     jobs: [],
+    nearbyUsers: [],
     activeMenu: null,
     onlineWorld: 0,
     onlinePlace: 0

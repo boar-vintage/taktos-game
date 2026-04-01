@@ -10,9 +10,11 @@ export const HELP_TEXT = [
   'LEAVE',
   'LOOK         (details for current place)',
   'JOBS         (jobs in current place)',
-  'WHO          (presence counts)',
+  'WHO          (list nearby users)',
   'SAY <msg>',
   'WAVE',
+  'TAK <who#>   (tak tak a nearby user)',
+  'DROP         (drop resume at current place)',
   'UNLOCK <job#>',
   'PROFILE'
 ];

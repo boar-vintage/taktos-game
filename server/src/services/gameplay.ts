@@ -231,6 +231,64 @@ export async function createUnlockTransaction(input: {
   return tx.rows[0]!;
 }
 
+export async function takTakAction(input: {
+  app: FastifyInstance;
+  worldId: string;
+  placeId?: string | null;
+  fromUserId: string;
+  toUserId: string;
+}) {
+  const event = await appendEvent({
+    worldId: input.worldId,
+    placeId: input.placeId ?? null,
+    userId: input.fromUserId,
+    type: 'TakTakSent',
+    payload: { toUserId: input.toUserId }
+  });
+  input.app.wsHub.broadcast(event);
+}
+
+export async function dropResumeAction(input: {
+  app: FastifyInstance;
+  worldId: string;
+  placeId: string;
+  userId: string;
+}) {
+  await pool.query(
+    `INSERT INTO resume_drops (user_id, place_id, dropped_at, still_interested, expires_at)
+     VALUES ($1, $2, NOW(), TRUE, NOW() + INTERVAL '180 days')
+     ON CONFLICT (user_id, place_id)
+     DO UPDATE SET dropped_at = NOW(), still_interested = TRUE, expires_at = NOW() + INTERVAL '180 days'`,
+    [input.userId, input.placeId]
+  );
+
+  const event = await appendEvent({
+    worldId: input.worldId,
+    placeId: input.placeId,
+    userId: input.userId,
+    type: 'ResumeDropped',
+    payload: { placeId: input.placeId }
+  });
+  input.app.wsHub.broadcast(event);
+}
+
+export async function listNearbyUsers(worldId: string, placeId: string | null, excludeUserId: string) {
+  const result = await pool.query<{ id: string; display_name: string; role: string }>(
+    `SELECT u.id, u.display_name, u.role
+     FROM presence pr
+     JOIN users u ON u.id = pr.user_id
+     WHERE pr.world_id = $1
+       AND (($2::uuid IS NULL AND pr.place_id IS NULL) OR pr.place_id = $2)
+       AND pr.status = 'online'
+       AND pr.user_id <> $3
+     ORDER BY pr.last_seen_at DESC
+     LIMIT 20`,
+    [worldId, placeId, excludeUserId]
+  );
+
+  return result.rows;
+}
+
 export async function getPresenceSnapshot(worldId: string, placeId: string | null) {
   const worldCount = await pool.query<{ count: string }>(
     "SELECT COUNT(*)::text AS count FROM presence WHERE world_id = $1 AND status = 'online'",
