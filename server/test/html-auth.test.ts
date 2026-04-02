@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { authenticateHtmlCookie } from '../src/services/html/auth.js';
 
+vi.mock('../src/services/adminAccess.js', () => ({
+  isUserBlocked: vi.fn().mockResolvedValue(false),
+}));
+
 describe('html cookie auth middleware', () => {
   it('redirects to /html/login when cookie is missing', async () => {
     const reply = {
