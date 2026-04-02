@@ -377,6 +377,32 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
     reply.code(302).header('Location', resolveWorldMainstreetPath(city.slug)).send();
   });
 
+  app.post('/html/update-location', async (request, reply) => {
+    const body = request.body as Record<string, string> | undefined ?? {};
+    const lat = parseFloat(body.lat ?? '');
+    const lon = parseFloat(body.lon ?? '');
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      reply.code(400).send('bad');
+      return;
+    }
+
+    await setUserHomeCoords(request.user.userId, lat, lon);
+
+    const newCity = findCity(lat, lon);
+    if (newCity) {
+      const worldId = await getOrCreateCityWorld(newCity);
+      const currentSlug = await getUserHomeWorldSlug(request.user.userId);
+      if (newCity.slug !== currentSlug) {
+        await importBusinessesForCity(newCity, worldId, lat, lon);
+        await setUserHomeWorld(request.user.userId, worldId);
+        reply.code(200).send(`relocate:${resolveWorldMainstreetPath(newCity.slug)}`);
+        return;
+      }
+    }
+
+    reply.code(200).send('ok');
+  });
+
   app.get('/html/world/:worldSlug/mainstreet', async (request, reply) => {
     const params = request.params as { worldSlug: string };
     const world = await getWorldBySlug(params.worldSlug);
@@ -464,7 +490,26 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
         : '<p>No one nearby right now.</p>',
       '<h2>Actions</h2>',
       `<ul><li>${link(wave, 'Wave')}</li><li>${link(say, 'Say: "hello"')}</li></ul>`,
-      `<p>${link(selfPath, 'Refresh')}</p>`
+      `<p>${link(selfPath, 'Refresh')}</p>`,
+      `<script>
+(function () {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(
+    function (pos) {
+      fetch('/html/update-location', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'lat=' + pos.coords.latitude + '&lon=' + pos.coords.longitude
+      })
+      .then(function (r) { return r.text(); })
+      .then(function (t) { if (t.startsWith('relocate:')) window.location.href = t.slice(9); })
+      .catch(function () {});
+    },
+    function () {},
+    { maximumAge: 300000, timeout: 10000 }
+  );
+}());
+</script>`,
     ]);
   });
 
