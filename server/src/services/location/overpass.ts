@@ -9,6 +9,17 @@ export interface OsmPoi {
   lat: number;
   lon: number;
   addressText: string;
+  websiteUrl: string | null;
+  logoUrl: string | null;
+}
+
+export function extractDomain(website: string): string | null {
+  try {
+    const url = new URL(website.startsWith('http') ? website : `https://${website}`);
+    return url.hostname.replace(/^www\./, '');
+  } catch {
+    return null;
+  }
 }
 
 function buildQuery(lat: number, lon: number): string {
@@ -83,6 +94,10 @@ export async function queryPois(lat: number, lon: number): Promise<OsmPoi[]> {
     if (seen.has(osmId)) continue;
     seen.add(osmId);
 
+    const websiteUrl = tags['website'] ?? tags['contact:website'] ?? null;
+    const domain = websiteUrl ? extractDomain(websiteUrl) : null;
+    const logoUrl = domain ? `https://logo.clearbit.com/${domain}` : null;
+
     pois.push({
       osmId,
       name,
@@ -90,6 +105,8 @@ export async function queryPois(lat: number, lon: number): Promise<OsmPoi[]> {
       lat: elLat,
       lon: elLon,
       addressText: osmAddress(tags),
+      websiteUrl,
+      logoUrl,
     });
   }
 

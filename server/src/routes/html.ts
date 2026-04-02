@@ -422,18 +422,20 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
       online_count: number;
       biz_lat: number | null;
       biz_lon: number | null;
+      logo_url: string | null;
     }>(
       `SELECT p.id, p.name,
               COUNT(pr.user_id) FILTER (
                 WHERE pr.status = 'online' AND pr.last_seen_at > NOW() - ($2 || ' seconds')::interval
               )::int AS online_count,
               b.latitude  AS biz_lat,
-              b.longitude AS biz_lon
+              b.longitude AS biz_lon,
+              b.logo_url
        FROM places p
        LEFT JOIN presence pr ON pr.place_id = p.id
        LEFT JOIN businesses b ON b.id = p.business_id
        WHERE p.world_id = $1
-       GROUP BY p.id, b.latitude, b.longitude
+       GROUP BY p.id, b.latitude, b.longitude, b.logo_url
        ORDER BY p.is_featured DESC, p.created_at ASC`,
       [world.id, onlineWindow]
     );
@@ -476,10 +478,13 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
       '<h2>Places</h2>',
       `<ul>${places.rows
         .map((p) => {
+          const logo = p.logo_url
+            ? `<img src="${e(p.logo_url)}" width="20" height="20" alt="" style="border-radius:3px;vertical-align:middle;margin-right:4px" onerror="this.remove()">`
+            : '';
           const way = (userCoords && p.biz_lat != null && p.biz_lon != null)
             ? ` <small>${e(wayfinding(userCoords.lat, userCoords.lon, p.biz_lat, p.biz_lon))}</small>`
             : '';
-          return `<li>${link(`/html/place/${p.id}`, `${p.name} (${p.online_count} online)`)}${way}</li>`;
+          return `<li>${logo}${link(`/html/place/${p.id}`, `${p.name} (${p.online_count} online)`)}${way}</li>`;
         })
         .join('')}</ul>`,
       '<h2>People nearby</h2>',
@@ -528,10 +533,14 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
       world_id: string;
       world_slug: string;
       world_name: string;
+      logo_url: string | null;
+      website_url: string | null;
     }>(
-      `SELECT p.id, p.name, p.description, p.world_id, w.slug AS world_slug, w.name AS world_name
+      `SELECT p.id, p.name, p.description, p.world_id, w.slug AS world_slug, w.name AS world_name,
+              b.logo_url, b.website_url
        FROM places p
        JOIN worlds w ON w.id = p.world_id
+       LEFT JOIN businesses b ON b.id = p.business_id
        WHERE p.id = $1`,
       [params.placeId]
     );
@@ -606,9 +615,18 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
       params: { placeId: row.id, worldId: row.world_id, next: selfPath }
     });
 
+    const logoImg = row.logo_url
+      ? `<img src="${e(row.logo_url)}" width="64" height="64" alt="${e(row.name)} logo" style="border-radius:8px;display:block;margin-bottom:0.5rem" onerror="this.remove()">`
+      : '';
+    const websiteLink = row.website_url
+      ? `<p><a href="${e(row.website_url)}" rel="noopener noreferrer">${e(row.website_url)}</a></p>`
+      : '';
+
     ensureHtml(reply);
     return page(`Place: ${row.name}`, [
+      logoImg,
       `<h1>${e(row.name)}</h1>`,
+      websiteLink,
       `<p>${e(row.description)}</p>`,
       `<p>${link(back, 'Back to Main Street')}</p>`,
       '<h2>People here now</h2>',

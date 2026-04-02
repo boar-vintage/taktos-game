@@ -45,16 +45,18 @@ export async function importBusinessesForCity(
 
   for (const poi of pois) {
     const biz = await pool.query<{ id: string }>(
-      `INSERT INTO businesses (name, description, category, address_text, latitude, longitude, external_id)
-       VALUES ($1, '', $2, $3, $4, $5, $6)
+      `INSERT INTO businesses (name, description, category, address_text, latitude, longitude, external_id, website_url, logo_url)
+       VALUES ($1, '', $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO UPDATE
          SET name = EXCLUDED.name,
              category = EXCLUDED.category,
              address_text = EXCLUDED.address_text,
              latitude = EXCLUDED.latitude,
-             longitude = EXCLUDED.longitude
+             longitude = EXCLUDED.longitude,
+             website_url = COALESCE(EXCLUDED.website_url, businesses.website_url),
+             logo_url = COALESCE(EXCLUDED.logo_url, businesses.logo_url)
        RETURNING id`,
-      [poi.name, poi.category, poi.addressText, poi.lat, poi.lon, poi.osmId]
+      [poi.name, poi.category, poi.addressText, poi.lat, poi.lon, poi.osmId, poi.websiteUrl, poi.logoUrl]
     );
     const businessId = biz.rows[0]!.id;
 
