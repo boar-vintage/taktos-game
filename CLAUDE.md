@@ -74,3 +74,11 @@ For the roadamp look in /docs/roadmap/roadmap.md
 | `TWILIO_*` | Leave empty to skip SMS signature validation |
 
 Copy `server/.env.example` → `server/.env` before first run.
+
+## Agents
+
+### After every `git push`
+Launch the `ci-deploy-monitor` agent in the background to watch the GitHub Actions run and Railway deployment, and report back when it completes (or fails).
+
+### After any major feature
+Launch the `qa-automation-engineer` agent to assess whether new integration or UI tests should be written for the changed routes/services, write them, and file GitHub issues for any bugs discovered.
