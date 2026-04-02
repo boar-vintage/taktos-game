@@ -55,6 +55,25 @@ function ensureHtml(reply: import('fastify').FastifyReply): void {
   reply.type('text/html; charset=utf-8');
 }
 
+function buildLogoImg(logoUrl: string | null, websiteUrl: string | null, size: number, style: string): string {
+  let faviconUrl: string | null = null;
+  if (websiteUrl) {
+    try {
+      const hostname = new URL(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`).hostname;
+      faviconUrl = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostname)}&sz=${size}`;
+    } catch { /* ignore bad URLs */ }
+  }
+
+  const src = logoUrl ?? faviconUrl;
+  if (!src) return '';
+
+  const fallback = logoUrl && faviconUrl
+    ? `this.onerror=null;this.src='${faviconUrl}'`
+    : 'this.remove()';
+
+  return `<img src="${e(src)}" width="${size}" height="${size}" alt="" style="${e(style)}" onerror="${e(fallback)}">`;
+}
+
 function safeRedirectPath(input: string | undefined, fallback: string): string {
   if (!input) {
     return fallback;
@@ -427,6 +446,7 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
       biz_lat: number | null;
       biz_lon: number | null;
       logo_url: string | null;
+      website_url: string | null;
     }>(
       `SELECT p.id, p.name,
               COUNT(pr.user_id) FILTER (
@@ -434,12 +454,13 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
               )::int AS online_count,
               b.latitude  AS biz_lat,
               b.longitude AS biz_lon,
-              b.logo_url
+              b.logo_url,
+              b.website_url
        FROM places p
        LEFT JOIN presence pr ON pr.place_id = p.id
        LEFT JOIN businesses b ON b.id = p.business_id
        WHERE p.world_id = $1
-       GROUP BY p.id, b.latitude, b.longitude, b.logo_url
+       GROUP BY p.id, b.latitude, b.longitude, b.logo_url, b.website_url
        ORDER BY p.is_featured DESC, p.created_at ASC`,
       [world.id, onlineWindow]
     );
@@ -482,9 +503,7 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
       '<h2>Places</h2>',
       `<ul>${places.rows
         .map((p) => {
-          const logo = p.logo_url
-            ? `<img src="${e(p.logo_url)}" width="20" height="20" alt="" style="border-radius:3px;vertical-align:middle;margin-right:4px" onerror="this.remove()">`
-            : '';
+          const logo = buildLogoImg(p.logo_url, p.website_url, 20, 'border-radius:3px;vertical-align:middle;margin-right:4px');
           const way = (userCoords && p.biz_lat != null && p.biz_lon != null)
             ? ` <small>${e(wayfinding(userCoords.lat, userCoords.lon, p.biz_lat, p.biz_lon))}</small>`
             : '';
@@ -641,9 +660,7 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
       params: { placeId: row.id, worldId: row.world_id, next: selfPath }
     });
 
-    const logoImg = row.logo_url
-      ? `<img src="${e(row.logo_url)}" width="64" height="64" alt="${e(row.name)} logo" style="border-radius:8px;display:block;margin-bottom:0.5rem" onerror="this.remove()">`
-      : '';
+    const logoImg = buildLogoImg(row.logo_url, row.website_url, 64, 'border-radius:8px;display:block;margin-bottom:0.5rem');
     const websiteLink = row.website_url
       ? `<p><a href="${e(row.website_url)}" rel="noopener noreferrer">${e(row.website_url)}</a></p>`
       : '';
