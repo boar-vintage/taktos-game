@@ -9,6 +9,8 @@ import { markHtmlPresenceOnline, touchPresenceLastSeen } from '../services/html/
 import { e, link, page } from '../services/html/render.js';
 import { buildSignedPath, verifySignedActionToken } from '../services/html/signedLinks.js';
 import { isUserBlocked } from '../services/adminAccess.js';
+import { findCity, getCityBySlug, SUPPORTED_CITIES } from '../services/location/cities.js';
+import { getOrCreateCityWorld, getUserHomeWorldSlug, importBusinessesForCity, setUserHomeWorld } from '../services/location/businessImport.js';
 import { hashPassword, verifyPassword } from '../utils/auth.js';
 import { sanitizeChatInput } from '../utils/sanitize.js';
 
@@ -285,8 +287,93 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
     reply.code(302).header('Location', '/html/login').send();
   });
 
-  app.get('/html', async (_request, reply) => {
-    reply.code(302).header('Location', '/html/world/core/mainstreet').send();
+  app.get('/html', async (request, reply) => {
+    const homeSlug = await getUserHomeWorldSlug(request.user.userId);
+    if (homeSlug) {
+      reply.code(302).header('Location', resolveWorldMainstreetPath(homeSlug)).send();
+    } else {
+      reply.code(302).header('Location', '/html/locate').send();
+    }
+  });
+
+  app.get('/html/locate', async (_request, reply) => {
+    ensureHtml(reply);
+    const cityButtons = SUPPORTED_CITIES.map(
+      (c) => `<p><button name="city" value="${e(c.slug)}">${e(c.name)}</button></p>`
+    ).join('');
+    return page('Blue Link City — Find Your City', [
+      '<h1>Blue Link City</h1>',
+      '<h2>Finding businesses near you&hellip;</h2>',
+      '<p id="status">Requesting your location&hellip;</p>',
+      '<form id="loc-form" method="POST" action="/html/locate">',
+      '<input type="hidden" name="lat" id="lat" />',
+      '<input type="hidden" name="lon" id="lon" />',
+      '</form>',
+      `<form id="city-form" method="POST" action="/html/locate" style="display:none">`,
+      '<p>Or choose your city:</p>',
+      cityButtons,
+      '</form>',
+      `<script>
+(function () {
+  if (!navigator.geolocation) {
+    document.getElementById('status').textContent = 'Geolocation not supported. Choose your city:';
+    document.getElementById('city-form').style.display = '';
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    function (pos) {
+      document.getElementById('lat').value = pos.coords.latitude;
+      document.getElementById('lon').value = pos.coords.longitude;
+      document.getElementById('status').textContent = 'Got your location! Loading\u2026';
+      document.getElementById('loc-form').submit();
+    },
+    function () {
+      document.getElementById('status').textContent = 'Location access denied. Choose your city:';
+      document.getElementById('city-form').style.display = '';
+    }
+  );
+}());
+</script>`,
+    ]);
+  });
+
+  app.post('/html/locate', async (request, reply) => {
+    ensureHtml(reply);
+    const body = request.body as Record<string, string> | undefined ?? {};
+
+    let city = null;
+
+    if (body.city) {
+      city = getCityBySlug(body.city);
+    } else if (body.lat && body.lon) {
+      const lat = parseFloat(body.lat);
+      const lon = parseFloat(body.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        reply.code(400);
+        return page('Bad Request', ['<h1>Invalid coordinates</h1>', `<p>${link('/html/locate', 'Try again')}</p>`]);
+      }
+      city = findCity(lat, lon);
+    }
+
+    if (!city) {
+      reply.code(200);
+      return page('Not in your area yet', [
+        '<h1>Blue Link City</h1>',
+        '<h2>We&rsquo;re not in your area yet</h2>',
+        '<p>Blue Link City is currently available in Los Angeles, San Diego, and Austin.</p>',
+        `<p>${link('/html/locate', 'Try again')}</p>`,
+      ]);
+    }
+
+    const worldId = await getOrCreateCityWorld(city);
+
+    const userLat = body.lat ? parseFloat(body.lat) : city.lat;
+    const userLon = body.lon ? parseFloat(body.lon) : city.lon;
+    await importBusinessesForCity(city, worldId, userLat, userLon);
+
+    await setUserHomeWorld(request.user.userId, worldId);
+
+    reply.code(302).header('Location', resolveWorldMainstreetPath(city.slug)).send();
   });
 
   app.get('/html/world/:worldSlug/mainstreet', async (request, reply) => {

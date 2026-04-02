@@ -29,6 +29,20 @@ async function run() {
     coreWorldId = inserted.rows[0]!.id;
   }
 
+  const cityWorlds = [
+    { slug: 'los-angeles', name: 'Los Angeles' },
+    { slug: 'san-diego', name: 'San Diego' },
+    { slug: 'austin', name: 'Austin' },
+  ];
+  for (const city of cityWorlds) {
+    await pool.query(
+      `INSERT INTO worlds (slug, name, is_core, status)
+       VALUES ($1, $2, FALSE, 'active')
+       ON CONFLICT (slug) DO NOTHING`,
+      [city.slug, city.name]
+    );
+  }
+
   const satellite = await pool.query(
     "INSERT INTO worlds (slug, name, is_core, status) VALUES ('techcrunch-world', 'TechCrunch World', FALSE, 'planned') ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name RETURNING id"
   );
