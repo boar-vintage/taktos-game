@@ -74,6 +74,23 @@ export async function setUserHomeWorld(userId: string, worldId: string): Promise
   );
 }
 
+export async function setUserHomeCoords(userId: string, lat: number, lon: number): Promise<void> {
+  await pool.query(
+    `UPDATE users SET home_lat = $2, home_lon = $3 WHERE id = $1`,
+    [userId, lat, lon]
+  );
+}
+
+export async function getUserHomeCoords(userId: string): Promise<{ lat: number; lon: number } | null> {
+  const result = await pool.query<{ home_lat: number | null; home_lon: number | null }>(
+    `SELECT home_lat, home_lon FROM users WHERE id = $1`,
+    [userId]
+  );
+  const row = result.rows[0];
+  if (!row || row.home_lat == null || row.home_lon == null) return null;
+  return { lat: row.home_lat, lon: row.home_lon };
+}
+
 export async function getUserHomeWorldSlug(userId: string): Promise<string | null> {
   const result = await pool.query<{ slug: string }>(
     `SELECT w.slug FROM users u

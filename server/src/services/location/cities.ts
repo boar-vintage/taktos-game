@@ -36,3 +36,32 @@ export function findCity(lat: number, lon: number): SupportedCity | null {
 export function getCityBySlug(slug: string): SupportedCity | null {
   return SUPPORTED_CITIES.find((c) => c.slug === slug) ?? null;
 }
+
+const ARROWS = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'] as const;
+const LABELS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const;
+
+export function wayfinding(
+  fromLat: number, fromLon: number,
+  toLat: number,   toLon: number
+): string {
+  const dist = haversineKm(fromLat, fromLon, toLat, toLon);
+
+  const φ1 = (fromLat * Math.PI) / 180;
+  const φ2 = (toLat * Math.PI) / 180;
+  const Δλ = ((toLon - fromLon) * Math.PI) / 180;
+  const bearing =
+    (Math.atan2(
+      Math.sin(Δλ) * Math.cos(φ2),
+      Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ)
+    ) * 180 / Math.PI + 360) % 360;
+
+  const idx = Math.round(bearing / 45) % 8;
+  const arrow = ARROWS[idx]!;
+  const label = LABELS[idx]!;
+
+  const distStr = dist < 1
+    ? `${Math.round(dist * 1000)}m`
+    : `${dist.toFixed(1)}km`;
+
+  return `${arrow} ${label} ${distStr}`;
+}

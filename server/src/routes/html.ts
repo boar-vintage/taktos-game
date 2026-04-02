@@ -9,8 +9,8 @@ import { markHtmlPresenceOnline, touchPresenceLastSeen } from '../services/html/
 import { e, link, page } from '../services/html/render.js';
 import { buildSignedPath, verifySignedActionToken } from '../services/html/signedLinks.js';
 import { isUserBlocked } from '../services/adminAccess.js';
-import { findCity, getCityBySlug, SUPPORTED_CITIES } from '../services/location/cities.js';
-import { getOrCreateCityWorld, getUserHomeWorldSlug, importBusinessesForCity, setUserHomeWorld } from '../services/location/businessImport.js';
+import { findCity, getCityBySlug, SUPPORTED_CITIES, wayfinding } from '../services/location/cities.js';
+import { getOrCreateCityWorld, getUserHomeCoords, getUserHomeWorldSlug, importBusinessesForCity, setUserHomeCoords, setUserHomeWorld } from '../services/location/businessImport.js';
 import { hashPassword, verifyPassword } from '../utils/auth.js';
 import { sanitizeChatInput } from '../utils/sanitize.js';
 
@@ -372,6 +372,7 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
     await importBusinessesForCity(city, worldId, userLat, userLon);
 
     await setUserHomeWorld(request.user.userId, worldId);
+    await setUserHomeCoords(request.user.userId, userLat, userLon);
 
     reply.code(302).header('Location', resolveWorldMainstreetPath(city.slug)).send();
   });
@@ -389,18 +390,29 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
 
     const onlineWindow = toSecondsInterval(env.HTML_ONLINE_WINDOW_SECONDS);
 
-    const places = await pool.query<{ id: string; name: string; online_count: number }>(
+    const places = await pool.query<{
+      id: string;
+      name: string;
+      online_count: number;
+      biz_lat: number | null;
+      biz_lon: number | null;
+    }>(
       `SELECT p.id, p.name,
               COUNT(pr.user_id) FILTER (
                 WHERE pr.status = 'online' AND pr.last_seen_at > NOW() - ($2 || ' seconds')::interval
-              )::int AS online_count
+              )::int AS online_count,
+              b.latitude  AS biz_lat,
+              b.longitude AS biz_lon
        FROM places p
        LEFT JOIN presence pr ON pr.place_id = p.id
+       LEFT JOIN businesses b ON b.id = p.business_id
        WHERE p.world_id = $1
-       GROUP BY p.id
+       GROUP BY p.id, b.latitude, b.longitude
        ORDER BY p.is_featured DESC, p.created_at ASC`,
       [world.id, onlineWindow]
     );
+
+    const userCoords = await getUserHomeCoords(request.user.userId);
 
     const nearby = await pool.query<{ id: string; display_name: string }>(
       `SELECT u.id, u.display_name
@@ -437,7 +449,12 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
       `<p>${request.user.role === 'admin' ? `${link('/admin', 'Admin Control Center')} | ` : ''}${link('/html/logout', 'Logout')}</p>`,
       '<h2>Places</h2>',
       `<ul>${places.rows
-        .map((p) => `<li>${link(`/html/place/${p.id}`, `${p.name} (${p.online_count} online)`)}</li>`)
+        .map((p) => {
+          const way = (userCoords && p.biz_lat != null && p.biz_lon != null)
+            ? ` <small>${e(wayfinding(userCoords.lat, userCoords.lon, p.biz_lat, p.biz_lon))}</small>`
+            : '';
+          return `<li>${link(`/html/place/${p.id}`, `${p.name} (${p.online_count} online)`)}${way}</li>`;
+        })
         .join('')}</ul>`,
       '<h2>People nearby</h2>',
       nearby.rows.length
