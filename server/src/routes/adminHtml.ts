@@ -5,6 +5,8 @@ import { env } from '../config/env.js';
 import { pool } from '../db/pool.js';
 import { authenticateHtmlCookie } from '../services/html/auth.js';
 import { e } from '../services/html/render.js';
+import { SUPPORTED_CITIES, getCityBySlug } from '../services/location/cities.js';
+import { getOrCreateCityWorld, importBusinessesForCity } from '../services/location/businessImport.js';
 import { hashPassword } from '../utils/auth.js';
 
 const idSchema = z.string().uuid();
@@ -373,6 +375,7 @@ function renderAdminBusinessesPage(input: {
   notice?: string;
   search: string;
   stats: { total: number; imported: number; categories: Array<{ category: string; count: number }> };
+  cities: Array<{ slug: string; name: string; place_count: number }>;
   businesses: Array<{
     id: string;
     name: string;
@@ -417,6 +420,25 @@ function renderAdminBusinessesPage(input: {
       <div class="col-6 col-xl-3"><div class="card p-3"><div class="text-muted small">Total businesses</div><div class="metric-value">${input.stats.total}</div></div></div>
       <div class="col-6 col-xl-3"><div class="card p-3"><div class="text-muted small">OSM imports</div><div class="metric-value">${input.stats.imported}</div></div></div>
       ${input.stats.categories.map((c) => `<div class="col-6 col-xl-3"><div class="card p-3"><div class="text-muted small">${e(c.category)}</div><div class="metric-value">${c.count}</div></div></div>`).join('')}
+    </div>
+
+    <div class="card p-3 mb-3">
+      <h2 class="h5 mb-3">City Imports</h2>
+      <div class="row g-2">
+        ${input.cities.map((city) => `
+          <div class="col-md-4">
+            <div class="border rounded p-3 d-flex justify-content-between align-items-center">
+              <div>
+                <div class="fw-semibold">${e(city.name)}</div>
+                <div class="small text-muted">${city.place_count} places cached</div>
+              </div>
+              <form method="POST" action="/admin/businesses/reimport">
+                <input type="hidden" name="city" value="${e(city.slug)}" />
+                <button class="btn btn-sm btn-outline-primary" type="submit">Re-import</button>
+              </form>
+            </div>
+          </div>`).join('')}
+      </div>
     </div>
 
     <div class="card p-3">
@@ -818,6 +840,16 @@ const adminHtmlRoutes: FastifyPluginAsync = async (app) => {
       [q]
     );
 
+    const cityPlaceCounts = await pool.query<{ slug: string; place_count: string }>(
+      `SELECT w.slug, COUNT(p.id)::text AS place_count
+       FROM worlds w
+       LEFT JOIN places p ON p.world_id = w.id
+       WHERE w.slug = ANY($1)
+       GROUP BY w.slug`,
+      [SUPPORTED_CITIES.map((c) => c.slug)]
+    );
+    const countBySlug = Object.fromEntries(cityPlaceCounts.rows.map((r) => [r.slug, Number(r.place_count)]));
+
     const stats = statsResult.rows[0]!;
     ensureHtml(reply);
     return renderAdminBusinessesPage({
@@ -829,8 +861,25 @@ const adminHtmlRoutes: FastifyPluginAsync = async (app) => {
         imported: Number(stats.imported),
         categories: categories.rows,
       },
+      cities: SUPPORTED_CITIES.map((c) => ({ slug: c.slug, name: c.name, place_count: countBySlug[c.slug] ?? 0 })),
       businesses: businesses.rows,
     });
+  });
+
+  app.post('/admin/businesses/reimport', async (request, reply) => {
+    const body = request.body as Record<string, string> | undefined ?? {};
+    const city = getCityBySlug(body.city ?? '');
+    if (!city) {
+      reply.code(302).header('Location', `/admin/businesses?notice=${encodeURIComponent('Unknown city')}`).send();
+      return;
+    }
+    const worldId = await getOrCreateCityWorld(city);
+    try {
+      await importBusinessesForCity(city, worldId, city.lat, city.lon, { force: true });
+      reply.code(302).header('Location', `/admin/businesses?notice=${encodeURIComponent(`Re-import complete for ${city.name}`)}`).send();
+    } catch {
+      reply.code(302).header('Location', `/admin/businesses?notice=${encodeURIComponent(`Re-import failed for ${city.name} — Overpass may be unavailable`)}`).send();
+    }
   });
 
   app.post('/admin/businesses/:businessId/update', async (request, reply) => {

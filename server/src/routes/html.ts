@@ -495,7 +495,7 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
         : '<p>No one nearby right now.</p>',
       '<h2>Actions</h2>',
       `<ul><li>${link(wave, 'Wave')}</li><li>${link(say, 'Say: "hello"')}</li></ul>`,
-      `<p>${link(selfPath, 'Refresh')}</p>`,
+      `<p>${link(selfPath, 'Refresh')} | ${link('/html/debug/location', 'Change location')}</p>`,
       `<script>
 (function () {
   if (!navigator.geolocation) return;
@@ -515,6 +515,28 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
   );
 }());
 </script>`,
+    ]);
+  });
+
+  app.get('/html/debug/location', async (request, reply) => {
+    ensureHtml(reply);
+    const coords = await getUserHomeCoords(request.user.userId);
+    const homeSlug = await getUserHomeWorldSlug(request.user.userId);
+    const cityButtons = SUPPORTED_CITIES.map(
+      (c) => `<p><button name="city" value="${e(c.slug)}">${e(c.name)} (${c.lat}, ${c.lon})</button></p>`
+    ).join('');
+    return page('Debug: Change Location', [
+      '<h1>Debug: Change Location</h1>',
+      `<p>Current: <code>${coords ? `${coords.lat}, ${coords.lon}` : 'not set'}</code> | World: <code>${e(homeSlug ?? 'none')}</code></p>`,
+      '<h2>Enter coordinates</h2>',
+      '<form method="POST" action="/html/locate">',
+      '<p><label>Latitude <input type="number" name="lat" step="any" value="" style="width:160px" /></label></p>',
+      '<p><label>Longitude <input type="number" name="lon" step="any" value="" style="width:160px" /></label></p>',
+      '<p><button type="submit">Set location</button></p>',
+      '</form>',
+      '<h2>Jump to city center</h2>',
+      `<form method="POST" action="/html/locate">${cityButtons}</form>`,
+      `<p>${link('/html', 'Back')}</p>`,
     ]);
   });
 

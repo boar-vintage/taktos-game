@@ -26,14 +26,17 @@ export async function importBusinessesForCity(
   city: SupportedCity,
   worldId: string,
   userLat: number,
-  userLon: number
+  userLon: number,
+  options: { force?: boolean } = {}
 ): Promise<void> {
-  const count = await pool.query<{ n: string }>(
-    `SELECT COUNT(*)::text AS n FROM places WHERE world_id = $1`,
-    [worldId]
-  );
-  if (parseInt(count.rows[0]!.n, 10) >= SKIP_IMPORT_THRESHOLD) {
-    return;
+  if (!options.force) {
+    const count = await pool.query<{ n: string }>(
+      `SELECT COUNT(*)::text AS n FROM places WHERE world_id = $1`,
+      [worldId]
+    );
+    if (parseInt(count.rows[0]!.n, 10) >= SKIP_IMPORT_THRESHOLD) {
+      return;
+    }
   }
 
   let pois;
