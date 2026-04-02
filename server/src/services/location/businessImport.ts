@@ -47,7 +47,7 @@ export async function importBusinessesForCity(
     const biz = await pool.query<{ id: string }>(
       `INSERT INTO businesses (name, description, category, address_text, latitude, longitude, external_id)
        VALUES ($1, '', $2, $3, $4, $5, $6)
-       ON CONFLICT (external_id) DO UPDATE
+       ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO UPDATE
          SET name = EXCLUDED.name,
              category = EXCLUDED.category,
              address_text = EXCLUDED.address_text,
