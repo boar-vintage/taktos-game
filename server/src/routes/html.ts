@@ -10,7 +10,7 @@ import { e, link, page } from '../services/html/render.js';
 import { buildSignedPath, verifySignedActionToken } from '../services/html/signedLinks.js';
 import { isUserBlocked } from '../services/adminAccess.js';
 import { findCity, getCityBySlug, SUPPORTED_CITIES, wayfinding } from '../services/location/cities.js';
-import { getOrCreateCityWorld, getUserHomeCoords, getUserHomeWorldSlug, importBusinessesForCity, setUserHomeCoords, setUserHomeWorld } from '../services/location/businessImport.js';
+import { getOrCreateCityWorld, getUserHomeCoords, getUserHomeWorldSlug, importBusinessesForCity, isUserHomeWorldPinned, pinUserHomeWorld, setUserHomeCoords, setUserHomeWorld } from '../services/location/businessImport.js';
 import { hashPassword, verifyPassword } from '../utils/auth.js';
 import { sanitizeChatInput } from '../utils/sanitize.js';
 
@@ -373,6 +373,7 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
 
     await setUserHomeWorld(request.user.userId, worldId);
     await setUserHomeCoords(request.user.userId, userLat, userLon);
+    await pinUserHomeWorld(request.user.userId, 60);
 
     reply.code(302).header('Location', resolveWorldMainstreetPath(city.slug)).send();
   });
@@ -388,15 +389,18 @@ const htmlRoutes: FastifyPluginAsync = async (app) => {
 
     await setUserHomeCoords(request.user.userId, lat, lon);
 
-    const newCity = findCity(lat, lon);
-    if (newCity) {
-      const worldId = await getOrCreateCityWorld(newCity);
-      const currentSlug = await getUserHomeWorldSlug(request.user.userId);
-      if (newCity.slug !== currentSlug) {
-        await importBusinessesForCity(newCity, worldId, lat, lon);
-        await setUserHomeWorld(request.user.userId, worldId);
-        reply.code(200).send(`relocate:${resolveWorldMainstreetPath(newCity.slug)}`);
-        return;
+    const pinned = await isUserHomeWorldPinned(request.user.userId);
+    if (!pinned) {
+      const newCity = findCity(lat, lon);
+      if (newCity) {
+        const worldId = await getOrCreateCityWorld(newCity);
+        const currentSlug = await getUserHomeWorldSlug(request.user.userId);
+        if (newCity.slug !== currentSlug) {
+          await importBusinessesForCity(newCity, worldId, lat, lon);
+          await setUserHomeWorld(request.user.userId, worldId);
+          reply.code(200).send(`relocate:${resolveWorldMainstreetPath(newCity.slug)}`);
+          return;
+        }
       }
     }
 

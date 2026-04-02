@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN IF NOT EXISTS home_world_pinned_until TIMESTAMPTZ;

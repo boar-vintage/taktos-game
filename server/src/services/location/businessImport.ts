@@ -96,6 +96,22 @@ export async function getUserHomeCoords(userId: string): Promise<{ lat: number; 
   return { lat: row.home_lat, lon: row.home_lon };
 }
 
+export async function pinUserHomeWorld(userId: string, minutes: number): Promise<void> {
+  await pool.query(
+    `UPDATE users SET home_world_pinned_until = NOW() + ($2 || ' minutes')::interval WHERE id = $1`,
+    [userId, minutes]
+  );
+}
+
+export async function isUserHomeWorldPinned(userId: string): Promise<boolean> {
+  const result = await pool.query<{ pinned: boolean }>(
+    `SELECT (home_world_pinned_until IS NOT NULL AND home_world_pinned_until > NOW()) AS pinned
+     FROM users WHERE id = $1`,
+    [userId]
+  );
+  return result.rows[0]?.pinned ?? false;
+}
+
 export async function getUserHomeWorldSlug(userId: string): Promise<string | null> {
   const result = await pool.query<{ slug: string }>(
     `SELECT w.slug FROM users u
