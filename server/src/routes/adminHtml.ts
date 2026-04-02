@@ -410,19 +410,19 @@ const adminHtmlRoutes: FastifyPluginAsync = async (app) => {
     );
 
     const eventBuckets = await pool.query<{ label: string; count: string }>(
-      `SELECT TO_CHAR(bucket, 'HH24:00') AS label, COALESCE(x.cnt, 0)::text AS count
+      `SELECT TO_CHAR(g.bucket, 'HH24:00') AS label, COALESCE(x.cnt, 0)::text AS count
        FROM generate_series(
          date_trunc('hour', NOW()) - interval '23 hours',
          date_trunc('hour', NOW()),
          interval '1 hour'
-       ) AS bucket
+       ) AS g(bucket)
        LEFT JOIN (
          SELECT date_trunc('hour', created_at) AS bucket, COUNT(*)::int AS cnt
          FROM events
          WHERE created_at > NOW() - interval '24 hours'
          GROUP BY 1
-       ) x ON x.bucket = bucket
-       ORDER BY bucket ASC`
+       ) x ON x.bucket = g.bucket
+       ORDER BY g.bucket ASC`
     );
 
     const onlineUsers = await pool.query<{

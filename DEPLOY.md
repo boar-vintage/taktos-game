@@ -11,7 +11,8 @@ Create a new project in the Railway dashboard.
 ### 2. Add the server service
 
 - New → GitHub Repo → select `taktos-game`
-- Railway detects `railway.toml` and builds with the `Dockerfile`
+- Railway detects the `Dockerfile` and builds with it
+- **Important:** leave the Custom Start Command blank (Settings → Deploy). The `Dockerfile` `CMD` already runs migrations, seed, and the server in the correct order. Setting a custom start command (e.g. `pnpm --filter @taktos/server start`) bypasses migrations and the app will fail with `relation "users" does not exist`.
 
 ### 3. Add a Postgres database
 
@@ -81,6 +82,17 @@ lint → migrate → test
 
 Tests require a live Postgres instance; the CI workflow spins one up as a service container. See `.github/workflows/ci.yml`.
 
+## Creating the first admin
+
+1. Sign up normally at `https://your-app.up.railway.app/html/signup`
+2. Promote the account via the Railway Postgres query tool (or any psql client):
+
+```sql
+UPDATE users SET role = 'admin' WHERE email = 'your@email.com';
+```
+
+The admin dashboard is then available at `/admin`.
+
 ## Troubleshooting
 
 **Healthcheck fails immediately** — Almost always means `DATABASE_URL` is not set or the Postgres plugin is not linked to the service. Check Variables in the Railway dashboard.
@@ -88,3 +100,5 @@ Tests require a live Postgres instance; the CI workflow spins one up as a servic
 **SSL errors connecting to Postgres** — Railway private networking (`.railway.internal`) does not use SSL. Public proxy URLs do. The `db/pool.ts` handles this automatically by checking the hostname.
 
 **Migration error on deploy** — Check Railway deploy logs. Each migration runs in a transaction and rolls back on failure. Fix the offending SQL and redeploy.
+
+**`relation "users" does not exist` on first request** — The Custom Start Command in Railway (Settings → Deploy) is overriding the Dockerfile `CMD` and skipping migrations. Clear the Custom Start Command field so Railway uses the Dockerfile directly, then redeploy.
